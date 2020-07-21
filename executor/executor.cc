@@ -14,7 +14,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#if GOOS_windows
+#include <atomic>
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 
 #include "defs.h"
 
@@ -170,8 +176,12 @@ static bool collide;
 uint32 completed;
 bool is_kernel_64_bit = true;
 
-ALIGNED(64 << 10)
+#if GOOS_windows
+static char *input_data;
+#else
 static char input_data[kMaxInput];
+ALIGNED(64 << 10)
+#endif
 
 // Checksum kinds.
 static const uint64 arg_csum_inet = 0;
@@ -339,7 +349,9 @@ static void setup_features(char** enable, int n);
 #error "unknown OS"
 #endif
 
+#if !GOOS_windows
 #include "test.h"
+#endif
 
 int main(int argc, char** argv)
 {
@@ -368,8 +380,12 @@ int main(int argc, char** argv)
 		return 0;
 	}
 	if (argc == 2 && strcmp(argv[1], "test") == 0)
-		return run_tests();
+#if GOOS_windows
+		fail("Tests not supported on Windows");
+#else
 
+		return run_tests();
+#endif
 	start_time_ms = current_time_ms();
 
 	os_init(argc, argv, (char*)SYZ_DATA_OFFSET, SYZ_NUM_PAGES * SYZ_PAGE_SIZE);
@@ -519,8 +535,21 @@ static execute_req last_execute_req;
 void receive_execute()
 {
 	execute_req& req = last_execute_req;
+	uint64_t req_pos = 0;
+	#if GOOS_windows
+	for (;;)
+	{
+		signed int rv = read(kInPipeFd, &req, sizeof(req));
+		if(rv < 0)
+			fail("control pipe read failed receive_execute");
+		req_pos += rv;
+		if (req_pos >= sizeof(req))
+			break;
+	}
+	#else
 	if (read(kInPipeFd, &req, sizeof(req)) != (ssize_t)sizeof(req))
 		fail("control pipe read failed");
+	#endif
 	if (req.magic != kInMagic)
 		fail("bad execute request magic 0x%llx", req.magic);
 	if (req.prog_size > kMaxInput)
@@ -550,7 +579,12 @@ void receive_execute()
 		fail("need_prog: no program");
 	uint64 pos = 0;
 	for (;;) {
+#if GOOS_windows
+		signed int rv = read(kInPipeFd, input_data + pos, sizeof(input_data) - pos);
+#else
 		ssize_t rv = read(kInPipeFd, input_data + pos, sizeof(input_data) - pos);
+#endif		
+		
 		if (rv < 0)
 			fail("read failed");
 		pos += rv;
@@ -579,7 +613,7 @@ void reply_execute(int status)
 	reply.done = true;
 	reply.status = status;
 	if (write(kOutPipeFd, &reply, sizeof(reply)) != sizeof(reply))
-		fail("control pipe write failed");
+		fail("control pipe write failed reply_execute");
 }
 
 // execute_one executes program stored in input_data.
@@ -1220,7 +1254,28 @@ void copyin(char* addr, uint64 val, uint64 size, uint64 bf, uint64 bf_off, uint6
 
 bool copyout(char* addr, uint64 size, uint64* res)
 {
-	bool ok = false;
+	
+#if GOOS_windows
+	std::atomic_bool ok = false;
+		NONFAILING(
+	    switch (size) {
+		    case 1:
+			    *res = *(uint8_t*)addr;
+			    break;
+		    case 2:
+			    *res = *(uint16_t*)addr;
+			    break;
+		    case 4:
+			    *res = *(uint32_t*)addr;
+			    break;
+		    case 8:
+			    *res = *(uint64_t*)addr;
+			    break;
+		    default:
+			    fail("copyout: bad argument size %llu", size);
+		} ok.store(true, std::memory_order_release););
+#else
+	bool ok = false;	
 	NONFAILING(
 	    switch (size) {
 		    case 1:
@@ -1237,8 +1292,10 @@ bool copyout(char* addr, uint64 size, uint64* res)
 			    break;
 		    default:
 			    fail("copyout: bad argument size %llu", size);
-	    } __atomic_store_n(&ok, true, __ATOMIC_RELEASE););
+	    }__atomic_store_n(&ok, true, __ATOMIC_RELEASE););
+#endif
 	return ok;
+
 }
 
 uint64 read_arg(uint64** input_posp)
@@ -1273,6 +1330,16 @@ uint64 swap(uint64 v, uint64 size, uint64 bf)
 	if (bf != binary_format_bigendian)
 		fail("bad binary format in swap: %llu", bf);
 	switch (size) {
+#if GOOS_windows
+	case 2:
+		return _byteswap_ushort(v);
+	case 4:
+		return _byteswap_ulong(v);
+	case 8:
+		return _byteswap_uint64(v);
+	default:
+		fail("bad big-endian int size %llu", size);
+#else
 	case 2:
 		return htobe16(v);
 	case 4:
@@ -1281,6 +1348,7 @@ uint64 swap(uint64 v, uint64 size, uint64 bf)
 		return htobe64(v);
 	default:
 		fail("bad big-endian int size %llu", size);
+#endif
 	}
 }
 

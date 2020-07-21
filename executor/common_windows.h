@@ -5,7 +5,6 @@
 
 #include <windows.h>
 
-#include "common.h"
 
 #if SYZ_EXECUTOR || SYZ_HANDLE_SEGV
 static void install_segv_handler()
