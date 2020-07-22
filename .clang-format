@@ -12,4 +12,3 @@ AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false
 ColumnLimit: 0
 AlignTrailingComments: false
-DeriveLineEnding: true

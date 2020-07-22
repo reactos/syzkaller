@@ -1,4 +1,4 @@
-// Copyright 2020 syzkaller project authors. All rights reserved.
+// Copyright 2016 syzkaller project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
 // This file is shared between executor and csource package.
@@ -16,8 +16,8 @@
 #endif
 
 #if GOOS_windows
+#include <io.h> //mktemp
 #include <windows.h> //for CreateDirectory
-#include <io.h> //mktemp 
 #endif
 #if GOOS_freebsd || GOOS_test && HOSTGOOS_freebsd
 #include <sys/endian.h> // for htobe*.
@@ -117,7 +117,6 @@ static void install_segv_handler(void)
 	sigaction(SIGBUS, &sa, NULL);
 }
 
-#if !GOOS_windows
 #define NONFAILING(...)                                              \
 	{                                                            \
 		__atomic_fetch_add(&skip_segv, 1, __ATOMIC_SEQ_CST); \
@@ -126,7 +125,6 @@ static void install_segv_handler(void)
 		}                                                    \
 		__atomic_fetch_sub(&skip_segv, 1, __ATOMIC_SEQ_CST); \
 	}
-#endif
 #endif
 #endif
 
@@ -153,6 +151,7 @@ static void sleep_ms(uint64 ms)
 	usleep(ms * 1000);
 }
 #endif
+
 #if SYZ_EXECUTOR || SYZ_THREADED || SYZ_REPEAT && SYZ_EXECUTOR_USES_FORK_SERVER || \
     SYZ_LEAK
 #include <time.h>
@@ -189,9 +188,10 @@ static void use_temporary_dir(void)
 #endif
 #endif
 #if GOOS_windows
-static void use_temporary_dir(void) {
+static void use_temporary_dir(void)
+{
 	char tmpdir_template[] = "./syzkaller.XXXXXX";
-	char*tmpdir = mktemp(tmpdir_template);
+	char* tmpdir = mktemp(tmpdir_template);
 
 	CreateDirectory(tmpdir, NULL);
 }
@@ -417,13 +417,6 @@ static uint16 csum_inet_digest(struct csum_inet* csum)
 
 #if SYZ_EXECUTOR || __NR_syz_execute_func
 // syz_execute_func(text ptr[in, text[taget]])
-#if GOOS_windows
-static long syz_execute_func(long text)
-{
-	((void (*)(void))(text))();
-	return 0;
-}
-#else
 static long syz_execute_func(volatile long text)
 {
 	// Here we just to random code which is inherently unsafe.
@@ -432,16 +425,17 @@ static long syz_execute_func(volatile long text)
 	// from the reach of the random code, otherwise it's known to reach
 	// the output region somehow. The asm block is arch-independent except
 	// for the number of available registers.
+#if defined(__GNUC__)
 	volatile long p[8] = {0};
 	(void)p;
 #if GOARCH_amd64
 	asm volatile("" ::"r"(0l), "r"(1l), "r"(2l), "r"(3l), "r"(4l), "r"(5l), "r"(6l),
 		     "r"(7l), "r"(8l), "r"(9l), "r"(10l), "r"(11l), "r"(12l), "r"(13l));
 #endif
+#endif
 	((void (*)(void))(text))();
 	return 0;
 }
-#endif
 #endif
 
 #if SYZ_THREADED

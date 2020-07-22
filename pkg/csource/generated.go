@@ -9,9 +9,13 @@ var commonHeader = `
 #define _GNU_SOURCE
 #endif
 
+#if GOOS_windows
+#include <io.h>
+#include <windows.h>
+#endif
 #if GOOS_freebsd || GOOS_test && HOSTGOOS_freebsd
 #include <sys/endian.h>
-#else
+#elif !GOOS_windows
 #include <endian.h>
 #endif
 #include <stdint.h>
@@ -24,7 +28,9 @@ var commonHeader = `
 #endif
 
 #if SYZ_EXECUTOR && !GOOS_linux
+#if !GOOS_windows
 #include <unistd.h>
+#endif
 NORETURN void doexit(int status)
 {
 	_exit(status);
@@ -143,12 +149,10 @@ static uint64 current_time_ms(void)
 	return (uint64)ts.tv_sec * 1000 + (uint64)ts.tv_nsec / 1000000;
 }
 #endif
-
 #if SYZ_EXECUTOR || SYZ_SANDBOX_ANDROID || SYZ_USE_TMP_DIR
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
 static void use_temporary_dir(void)
 {
 #if SYZ_SANDBOX_ANDROID
@@ -168,7 +172,15 @@ static void use_temporary_dir(void)
 }
 #endif
 #endif
+#if GOOS_windows
+static void use_temporary_dir(void)
+{
+	char tmpdir_template[] = "./syzkaller.XXXXXX";
+	char* tmpdir = mktemp(tmpdir_template);
 
+	CreateDirectory(tmpdir, NULL);
+}
+#endif
 #if GOOS_akaros || GOOS_netbsd || GOOS_freebsd || GOOS_openbsd || GOOS_test
 #if (SYZ_EXECUTOR || SYZ_REPEAT) && SYZ_EXECUTOR_USES_FORK_SERVER && (SYZ_EXECUTOR || SYZ_USE_TMP_DIR)
 #include <dirent.h>
@@ -354,8 +366,11 @@ static void csum_inet_update(struct csum_inet* csum, const uint8* data, size_t l
 		csum->acc += *(uint16*)&data[i];
 
 	if (length & 1)
+#if GOOS_windows
+		csum->acc += (uint16)data[length - 1];
+#else
 		csum->acc += le16toh((uint16)data[length - 1]);
-
+#endif
 	while (csum->acc > 0xffff)
 		csum->acc = (csum->acc & 0xffff) + (csum->acc >> 16);
 }
@@ -8453,8 +8468,6 @@ static int do_sandbox_none(void)
 
 #include <windows.h>
 
-#include "common.h"
-
 #if SYZ_EXECUTOR || SYZ_HANDLE_SEGV
 static void install_segv_handler()
 {
@@ -8567,11 +8580,13 @@ static int do_sandbox_none(void)
 #if SYZ_EXECUTOR || __NR_syz_execute_func
 static long syz_execute_func(volatile long text)
 {
+#if defined(__GNUC__)
 	volatile long p[8] = {0};
 	(void)p;
 #if GOARCH_amd64
 	asm volatile("" ::"r"(0l), "r"(1l), "r"(2l), "r"(3l), "r"(4l), "r"(5l), "r"(6l),
 		     "r"(7l), "r"(8l), "r"(9l), "r"(10l), "r"(11l), "r"(12l), "r"(13l));
+#endif
 #endif
 	((void (*)(void))(text))();
 	return 0;

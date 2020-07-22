@@ -5,6 +5,11 @@
 #include "test_linux.h"
 #endif
 
+#if GOOS_windows
+#define le16toh(x) (x)
+#define htole16(x) (x)
+#endif
+
 static int test_copyin()
 {
 	static uint16 buf[3];

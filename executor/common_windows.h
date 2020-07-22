@@ -1,10 +1,9 @@
-// Copyright 2020 syzkaller project authors. All rights reserved.
+// Copyright 2017 syzkaller project authors. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 
 // This file is shared between executor and csource package.
 
 #include <windows.h>
-
 
 #if SYZ_EXECUTOR || SYZ_HANDLE_SEGV
 static void install_segv_handler()
