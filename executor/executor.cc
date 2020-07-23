@@ -180,12 +180,10 @@ static bool collide;
 uint32 completed;
 bool is_kernel_64_bit = true;
 
-#if GOOS_windows
-static char* input_data;
-#else
-static char input_data[kMaxInput];
+#if !GOOS_windows
 ALIGNED(64 << 10)
 #endif
+static char input_data[kMaxInput];
 
 // Checksum kinds.
 static const uint64 arg_csum_inet = 0;
