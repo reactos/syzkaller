@@ -17,6 +17,7 @@
 
 #if GOOS_windows
 #include <atomic>
+#include <intrin.h>
 #include <process.h>
 #define htobe16 _byteswap_ushort
 #define htobe32 _byteswap_ulong
@@ -560,6 +561,12 @@ void receive_execute()
 	}
 	if (req.prog_size == 0)
 		fail("need_prog: no program");
+#if GOOS_windows
+	DWORD dwRead = 0;
+	if (!ReadFile((HANDLE)_get_osfhandle(249), input_data, req.prog_size, &dwRead, NULL)) {
+		fail("Read failed");
+	}
+#else
 	uint64 pos = 0;
 	for (;;) {
 		ssize_t rv = read(kInPipeFd, input_data + pos, sizeof(input_data) - pos);
@@ -571,6 +578,7 @@ void receive_execute()
 	}
 	if (pos != req.prog_size)
 		fail("bad input size %lld, want %lld", pos, req.prog_size);
+#endif
 }
 
 #if GOOS_akaros
@@ -590,8 +598,14 @@ void reply_execute(int status)
 	reply.magic = kOutMagic;
 	reply.done = true;
 	reply.status = status;
+#if GOOS_windows
+	if (!WriteFile((HANDLE)_get_osfhandle(248), &reply, sizeof(reply), NULL, NULL)) {
+		fail("write failed");
+	}
+#else
 	if (write(kOutPipeFd, &reply, sizeof(reply)) != sizeof(reply))
 		fail("control pipe write failed reply_execute");
+#endif
 }
 
 // execute_one executes program stored in input_data.
@@ -1019,8 +1033,14 @@ void write_call_output(thread_t* th, bool finished)
 	reply.signal_size = 0;
 	reply.cover_size = 0;
 	reply.comps_size = 0;
+#if GOOS_windows
+	if (!WriteFile((HANDLE)_get_osfhandle(248), &reply, sizeof(reply), NULL, NULL)) {
+		fail("write failed");
+	}
+#else
 	if (write(kOutPipeFd, &reply, sizeof(reply)) != sizeof(reply))
 		fail("control pipe call write failed");
+#endif
 	debug_verbose("out: index=%u num=%u errno=%d finished=%d blocked=%d\n",
 		      th->call_index, th->call_num, reserrno, finished, blocked);
 #endif
