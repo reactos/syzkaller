@@ -24,7 +24,7 @@
 
 #if defined(SYZ_EXECUTOR)
 #ifndef SYSCALLAPI
-#define SYSCALLAPI
+#define SYSCALLAPI __stdcall
 #endif
 
 typedef long(SYSCALLAPI* syscall_t)(long, long, long, long, long, long, long, long, long);

@@ -53,7 +53,25 @@ int main(int argc, char** argv)
 long execute_syscall(call_t* c, long a0, long a1, long a2, long a3, long a4, long a5, long a6, long a7, long a8)
 {
 	__try {
-		return c->call(a0, a1, a2, a3, a4, a5, a6, a7, a8);
+		/*return c->call(a0, a1, a2, a3, a4, a5, a6, a7, a8);*/
+		__asm int 3;
+		__asm {
+			mov ebx, esp  			        ;
+			push dword ptr [ebp+0x2c]		;
+			push dword ptr [ebp+0x28]		;
+			push dword ptr [ebp+0x24]		;
+			push dword ptr [ebp+0x20]		;
+			push dword ptr [ebp+0x1c]		;
+			push dword ptr [ebp+0x18]		;
+			push dword ptr [ebp+0x14]		;
+			push dword ptr [ebp+0x10]		;
+			push dword ptr [ebp+0xC]		;		  		
+			mov eax,[ebp+0x8]				;
+			mov ecx, [eax+0x8]				;
+			call ecx		  				;
+			mov esp,ebx						;
+			retn							;
+		}
 	} __except (EXCEPTION_EXECUTE_HANDLER) {
 		return -1;
 	}

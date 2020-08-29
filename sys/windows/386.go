@@ -551,6 +551,13 @@ var syscalls_386 = []*Syscall{
 		&ResourceType{TypeCommon: TypeCommon{TypeName: "HANDLE", FldName: "Process", TypeSize: 4}},
 	}},
 	{ID: 106, Name: "GetCurrentProcessId", CallName: "GetCurrentProcessId"},
+	{ID: 107, Name: "NtClose", CallName: "NtClose", Args: []Type{
+		&ResourceType{TypeCommon: TypeCommon{TypeName: "HANDLE", FldName: "Handle", TypeSize: 4}},
+	}},
+	{ID: 108, Name: "NtQueryOpenSubKeys", CallName: "NtQueryOpenSubKeys", Args: []Type{
+		&PtrType{TypeCommon: TypeCommon{TypeName: "ptr", FldName: "TargetKey", TypeSize: 4}, Type: &IntType{IntTypeCommon: IntTypeCommon{TypeCommon: TypeCommon{TypeName: "intptr", TypeSize: 4, ArgDir: 2}}}},
+		&PtrType{TypeCommon: TypeCommon{TypeName: "ptr", FldName: "HandleCount", TypeSize: 4}, Type: &IntType{IntTypeCommon: IntTypeCommon{TypeCommon: TypeCommon{TypeName: "int32", TypeSize: 4, ArgDir: 2}}}},
+	}},
 	/*{ID: 108, Name: "SetFileTime", CallName: "SetFileTime", Args: []Type{
 		&ResourceType{TypeCommon: TypeCommon{TypeName: "HANDLE", FldName: "hFile", TypeSize: 4}},
 		&PtrType{TypeCommon: TypeCommon{TypeName: "ptr", FldName: "lpCreationTime", TypeSize: 4}, Type: &IntType{IntTypeCommon: IntTypeCommon{TypeCommon: TypeCommon{TypeName: "intptr", TypeSize: 4, ArgDir: 2}}}},
